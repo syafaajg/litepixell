@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LitePixel - Konverter File Online</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome untuk ikon -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- jsPDF CDN for Image to PDF conversion -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- PDF.js CDN for PDF to Image conversion -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script>
+        // Set worker src for PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    </script>
+    <!-- JSZip CDN for creating ZIP files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- FileSaver.js for saving files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(to bottom right, #e2e8f0, #cbd5e0); /* Soft gradient background */
+            color: #333;
+        }
+        /* Custom styles to override or enhance Tailwind */
+        .drop-area, .result-area {
+            border: 2px dashed #93c5fd; /* blue-300 */
+            min-height: 180px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative; /* Untuk menempatkan gambar di dalamnya */
+            overflow: hidden; /* Sembunyikan jika gambar terlalu besar */
+            background-color: #f8fafc; /* Lighter panel background */
+        }
+        .drop-area:hover, .drop-area.drag-over {
+            border-color: #3b82f6; /* blue-500 */
+            background-color: #e0f2fe; /* blue-100 */
+        }
+        .drop-area i, .result-area i {
+            font-size: 6rem; /* Adjust icon size */
+            color: #60a5fa; /* blue-400 */
+            margin-bottom: 1rem;
+        }
+        .panel-title {
+            color: #4b5563; /* gray-700 */
+            font-weight: 600;
+        }
+        .highlight {
+            color: #ef4444; /* red-500 */
+            font-weight: 700;
+        }
+        .social-icons {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            display: flex;
+            gap: 0.75rem;
+        }
+        .uploaded-image, .converted-image { /* Renamed compressed-image to converted-image for broader use */
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain; /* Memastikan gambar pas di dalam container tanpa terpotong */
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none; /* Sembunyikan default, tampilkan saat gambar ada */
+        }
+        .uploaded-image.active, .converted-image.active {
+            display: block;
+        }
+        .status-message {
+            position: absolute;
+            bottom: 0.5rem;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 0.875rem;
+            color: #4b5563; /* gray-700 */
+            background-color: rgba(255,255,255,0.8);
+            padding: 0.25rem 0;
+            border-top-left-radius: 5px;
+            border-top-right-radius: 5px;
+        }
+        .download-link {
+            display: none; /* Sembunyikan default */
+            margin-top: 1rem;
+            padding: 0.5rem 1rem;
+            background: linear-gradient(to right, #10b981, #059669); /* Green gradient */
+            color: white;
+            border-radius: 0.5rem; /* More rounded */
+            text-decoration: none;
+            font-weight: 600; /* Bolder text */
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .download-link:hover {
+            background: linear-gradient(to right, #059669, #10b981); /* Reverse gradient on hover */
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px); /* Slight lift */
+        }
+        /* Tampilan progress bar */
+        .progress-bar-container {
+            width: 80%;
+            background-color: #d1d5db; /* gray-300 */
+            border-radius: 5px;
+            margin-top: 10px;
+            display: none; /* Sembunyikan default */
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+        }
+        .progress-bar {
+            width: 0%;
+            height: 15px;
+            background: linear-gradient(to right, #60a5fa, #3b82f6); /* Blue gradient */
+            border-radius: 5px;
+            text-align: center;
+            color: white;
+            font-size: 10px;
+            line-height: 15px;
+            transition: width 0.3s ease;
+        }
+
+        /* Custom Modal for Alerts */
+        .custom-modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.6); /* Darker overlay */
+            justify-content: center;
+            align-items: center;
+        }
+        .custom-modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 30px; /* More padding */
+            border: none;
+            border-radius: 12px; /* More rounded */
+            width: 90%; /* Wider on small screens */
+            max-width: 450px; /* Larger max width */
+            text-align: center;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3); /* Stronger shadow */
+            animation: fadeIn 0.3s ease-out; /* Fade in animation */
+        }
+        .custom-modal-content h3 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 1.25rem; /* Larger font */
+        }
+        .custom-modal-content button {
+            background: linear-gradient(to right, #3b82f6, #2563eb); /* Blue gradient button */
+            color: white;
+            padding: 12px 25px; /* Larger padding */
+            border: none;
+            border-radius: 8px; /* More rounded */
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+            font-weight: 600;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .custom-modal-content button:hover {
+            background: linear-gradient(to right, #2563eb, #3b82f6); /* Reverse gradient on hover */
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+            transform: translateY(-1px);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .converted-images-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px;
+            padding: 10px;
+            background-color: #f0f2f5; /* Consistent with body bg */
+            border-radius: 8px;
+            max-height: 300px; /* Limit height and make scrollable */
+            overflow-y: auto;
+            border: 1px solid #cbd5e0; /* gray-300 */
+        }
+
+        .converted-images-grid .image-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            padding: 8px; /* More padding */
+            border: 1px solid #e2e8f0; /* Lighter border */
+            border-radius: 8px; /* More rounded */
+            background-color: #ffffff; /* White background for items */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease;
+        }
+        .converted-images-grid .image-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .converted-images-grid .image-item img {
+            width: 100%;
+            height: auto;
+            max-height: 100px; /* Limit height of individual images in grid */
+            object-fit: contain;
+            border-radius: 5px;
+        }
+
+        .converted-images-grid .image-item button {
+            background-color: #3b82f6;
+            color: white;
+            padding: 6px 12px; /* Slightly larger */
+            border-radius: 5px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            width: 95%; /* Make button almost full width of item */
+            font-weight: 500;
+        }
+        .converted-images-grid .image-item button:hover {
+            background-color: #2563eb;
+        }
+
+        /* Enhanced Button Styles (global .btn) */
+        .btn {
+            background: linear-gradient(to right, #3b82f6, #2563eb); /* Blue gradient */
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px; /* More rounded */
+            font-size: 1rem; /* Slightly larger font */
+            font-weight: 600;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 200px; /* Keep max-width for consistency */
+        }
+        .btn:hover {
+            background: linear-gradient(to left, #3b82f6, #2563eb); /* Reverse gradient on hover */
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px); /* Slight lift */
+        }
+
+
+        @media (max-width: 768px) {
+            .social-icons {
+                position: static;
+                justify-content: center;
+                margin-bottom: 1rem;
+            }
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+    <!-- Custom Modal Structure -->
+    <div id="customAlertModal" class="custom-modal">
+        <div class="custom-modal-content">
+            <h3 id="alertMessage"></h3>
+            <button id="closeAlertModal">Oke</button>
+        </div>
+    </div>
+
+    <!-- Header Section -->
+    <header class="bg-blue-600 text-white p-4 shadow-xl flex justify-between items-center flex-wrap">
+        <div class="flex items-baseline space-x-2">
+            <h1 class="text-3xl font-bold">LitePixel</h1>
+            <p class="text-sm opacity-90">Help to reduce the weight of <a href="#" class="text-blue-200 hover:underline">file.</a></p>
+        </div>
+        <div class="text-lg font-medium mt-2 md:mt-0 opacity-90">
+            Konverter File Online
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex flex-wrap justify-center gap-5 p-5 mx-auto max-w-6xl w-full">
+        <!-- Original File Panel -->
+        <div class="bg-white border border-blue-200 rounded-lg p-5 text-center flex-1 min-w-[280px] shadow-lg">
+            <p class="text-sm uppercase font-semibold mb-4 panel-title" id="originalPanelTitle">Original File</p>
+            <div id="dropArea" class="drop-area rounded-lg p-10">
+                <input type="file" id="fileInput" accept="image/*, application/pdf" class="hidden">
+                <i class="fas fa-file-upload" id="dropIcon"></i>
+                <span class="text-base text-gray-600 font-medium" id="dropText">DRAG & DROP FILE(S)</span>
+                <img src="#" alt="Uploaded Image" class="uploaded-image" id="uploadedImage">
+                <span class="status-message" id="originalFileStatus"></span>
+                <div id="pdfThumbnailContainer" class="hidden flex flex-wrap justify-center gap-2 mt-4"></div>
+            </div>
+        </div>
+
+        <!-- Controls Panel -->
+        <div class="bg-white border border-blue-200 rounded-lg p-5 text-center flex-1 min-w-[150px] max-w-[200px] flex flex-col justify-center items-center gap-4 shadow-lg">
+            <button id="uploadButton" class="btn">UPLOAD</button>
+
+            <!-- Conversion Type Selector -->
+            <div class="w-full mt-4">
+                <label for="conversionType" class="block text-gray-700 text-sm font-medium mb-2">Jenis Konversi:</label>
+                <select id="conversionType" class="w-full p-2 border border-blue-300 rounded-md bg-white text-gray-700 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    <option value="image_compress">Gambar ke Gambar (Kompres)</option>
+                    <option value="image_enhance">Gambar (Upscale/Perbaiki Kualitas)</option>
+                    <option value="image_to_pdf">Gambar ke PDF</option>
+                    <option value="pdf_to_image">PDF ke Gambar</option>
+                </select>
+            </div>
+
+            <!-- Quality Slider (visible for image compression) -->
+            <div class="w-full mt-4" id="qualitySliderContainer">
+                <label for="qualitySlider" class="block text-gray-700 text-sm font-medium mb-2">Kualitas Kompresi: <span id="qualityValue">70</span>%</label>
+                <input type="range" id="qualitySlider" min="10" max="100" value="70" class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer thumb-blue-500">
+            </div>
+
+            <!-- Scale Factor Slider (visible for image enhancement) -->
+            <div class="w-full mt-4 hidden" id="scaleFactorSliderContainer">
+                <label for="scaleFactorSlider" class="block text-gray-700 text-sm font-medium mb-2">Faktor Skala (Upscale): <span id="scaleFactorValue">2</span>x</label>
+                <input type="range" id="scaleFactorSlider" min="1" max="4" value="2" class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer thumb-blue-500">
+            </div>
+
+            <button id="convertButton" class="btn mt-auto">KONVERSI</button>
+            <div class="progress-bar-container" id="progressBarContainer">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+        </div>
+
+        <!-- Result Panel -->
+        <div class="bg-white border border-blue-200 rounded-lg p-5 text-center flex-1 min-w-[280px] shadow-lg">
+            <p class="text-sm uppercase font-semibold mb-4 panel-title" id="resultPanelTitle">Hasil Konversi</p>
+            <div class="result-area rounded-lg p-10">
+                <i class="fas fa-file-image" id="resultIcon"></i>
+                <img src="#" alt="Converted File" class="converted-image" id="convertedImage">
+                <div id="convertedPdfContainer" class="hidden">
+                    <p class="text-gray-700 text-sm">PDF berhasil dibuat.</p>
+                </div>
+                <div id="convertedImagesResult" class="hidden converted-images-grid">
+                    <!-- Converted PDF pages as images will be inserted here -->
+                </div>
+                <span class="status-message" id="convertedFileStatus"></span>
+            </div>
+            <a href="#" id="downloadLink" class="download-link">Unduh File</a>
+            <button id="downloadAllImagesBtn" class="download-link bg-blue-600 hover:bg-blue-700 mt-2">Unduh Semua Gambar (ZIP)</button>
+        </div>
+    </main>
+
+    <!-- Instructions Section -->
+    <section class="bg-white p-6 md:p-8 mx-auto max-w-6xl w-full rounded-lg shadow-lg relative mb-5">
+        <h2 class="text-xl md:text-2xl font-bold text-gray-800 mb-5 text-center">Bagaimana cara mengonversi file dengan mudah ?</h2>
+        <div class="social-icons">
+            <i class="fab fa-facebook-f text-blue-600 text-xl cursor-pointer hover:text-blue-800 transition duration-300"></i>
+            <i class="fab fa-twitter text-blue-600 text-xl cursor-pointer hover:text-blue-800 transition duration-300"></i>
+        </div>
+        <ol class="list-decimal list-inside text-gray-700 mb-6 space-y-2">
+            <li>Pilih jenis konversi yang Anda inginkan (misalnya, Gambar ke PDF).</li>
+            <li>Unggah file asli Anda atau seret & lepas ke area yang tersedia.</li>
+            <li>Sesuaikan pengaturan jika ada (misalnya, kualitas kompresi untuk gambar).</li>
+            <li>Klik tombol "KONVERSI" dan unduh hasilnya.</li>
+        </ol>
+        <div class="flex flex-wrap justify-around gap-5 mb-6">
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md flex-1 min-w-[280px] text-sm text-gray-700 shadow-sm">
+                <p class="font-bold mb-1 text-blue-800">Q: Jenis file apa saja yang bisa dikonversi?</p>
+                <p>A: Saat ini mendukung <span class="highlight">gambar (JPG, PNG, GIF, WebP)</span> ke <span class="highlight">gambar terkompresi</span> atau <span class="highlight">PDF</span>, serta <span class="highlight">PDF ke Gambar</span> dan <span class="highlight">Gambar (Upscale)</span>.</p>
+            </div>
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md flex-1 min-w-[280px] text-sm text-gray-700 shadow-sm">
+                <p class="font-bold mb-1 text-blue-800">Q: Apakah file saya aman?</p>
+                <p>A: Ya, semua pemrosesan dilakukan di browser Anda. File Anda <span class="highlight">tidak diunggah ke server kami</span>. File akan dihapus dari memori setelah Anda menutup halaman.</p>
+            </div>
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md flex-1 min-w-[280px] text-sm text-gray-700 shadow-sm">
+                <p class="font-bold mb-1 text-blue-800">Q: Berapa batas ukuran file?</p>
+                <p>A: Batasan tergantung pada memori browser Anda, disarankan hingga <span class="highlight">20 MB</span> untuk performa terbaik.</p>
+            </div>
+        </div>
+        <p class="text-sm text-gray-600 text-justify leading-relaxed">
+            LitePixel adalah alat bantu online yang ringan untuk berbagai kebutuhan konversi file Anda langsung di browser. Kami berupaya menjaga privasi dan kecepatan dengan memproses file secara lokal.
+        </p>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-gray-300 text-center p-5 text-sm mt-auto">
+        <p>&copy; 2025 - LitePixel.com - V5.0 - <a href="#" class="text-gray-400 hover:underline">Contact</a> - <a href="#" class="text-gray-400 hover:underline">Privacy</a></p>
+    </footer>
+
+    <script>
+        // Memastikan jsPDF dimuat sebelum digunakan
+        const { jsPDF } = window.jspdf;
+
+        const dropArea = document.getElementById('dropArea');
+        const fileInput = document.getElementById('fileInput');
+        const uploadButton = document.getElementById('uploadButton');
+        const convertButton = document.getElementById('convertButton');
+        const qualitySlider = document.getElementById('qualitySlider');
+        const qualityValueSpan = document.getElementById('qualityValue');
+        const scaleFactorSlider = document.getElementById('scaleFactorSlider');
+        const scaleFactorValueSpan = document.getElementById('scaleFactorValue');
+        const uploadedImage = document.getElementById('uploadedImage');
+        const convertedImage = document.getElementById('convertedImage');
+        const downloadLink = document.getElementById('downloadLink');
+        const downloadAllImagesBtn = document.getElementById('downloadAllImagesBtn');
+        const dropIcon = document.getElementById('dropIcon');
+        const dropText = document.getElementById('dropText');
+        const resultIcon = document.getElementById('resultIcon');
+        const originalFileStatus = document.getElementById('originalFileStatus');
+        const convertedFileStatus = document.getElementById('convertedFileStatus');
+        const progressBarContainer = document.getElementById('progressBarContainer');
+        const progressBar = document.getElementById('progressBar');
+        const conversionTypeSelect = document.getElementById('conversionType');
+        const qualitySliderContainer = document.getElementById('qualitySliderContainer');
+        const scaleFactorSliderContainer = document.getElementById('scaleFactorSliderContainer');
+        const originalPanelTitle = document.getElementById('originalPanelTitle');
+        const resultPanelTitle = document.getElementById('resultPanelTitle');
+        const convertedPdfContainer = document.getElementById('convertedPdfContainer');
+        const customAlertModal = document.getElementById('customAlertModal');
+        const alertMessage = document.getElementById('alertMessage');
+        const closeAlertModal = document.getElementById('closeAlertModal');
+        const pdfThumbnailContainer = document.getElementById('pdfThumbnailContainer');
+        const convertedImagesResult = document.getElementById('convertedImagesResult');
+
+        let uploadedFiles = []; // To store all uploaded files, whether single or multiple
+        let currentConversionType = 'image_compress'; // Default conversion type
+        let convertedImageBlobs = []; // To store image blobs for PDF to Image for ZIP download
+
+        // Custom alert function to replace window.alert
+        function showCustomAlert(message) {
+            alertMessage.textContent = message;
+            customAlertModal.style.display = 'flex';
+        }
+
+        closeAlertModal.addEventListener('click', () => {
+            customAlertModal.style.display = 'none';
+        });
+
+        // Update quality slider value display
+        qualitySlider.addEventListener('input', () => {
+            qualityValueSpan.textContent = qualitySlider.value;
+        });
+
+        // Update scale factor slider value display
+        scaleFactorSlider.addEventListener('input', () => {
+            scaleFactorValueSpan.textContent = scaleFactorSlider.value;
+        });
+
+        // Event listener for conversion type change
+        conversionTypeSelect.addEventListener('change', (e) => {
+            currentConversionType = e.target.value;
+            updateUIForConversionType(currentConversionType);
+            resetUI();
+        });
+
+        // Function to update UI based on selected conversion type
+        function updateUIForConversionType(type) {
+            // Reset visibility for all possible elements
+            qualitySliderContainer.style.display = 'none';
+            scaleFactorSliderContainer.style.display = 'none';
+            uploadedImage.style.display = 'none';
+            convertedImage.style.display = 'none';
+            pdfThumbnailContainer.classList.add('hidden');
+            convertedPdfContainer.classList.add('hidden');
+            convertedImagesResult.classList.add('hidden');
+            convertedImagesResult.innerHTML = '';
+            downloadAllImagesBtn.style.display = 'none';
+
+            resultIcon.style.display = 'block';
+            dropIcon.style.display = 'block';
+            dropText.textContent = 'DRAG & DROP FILE(S)';
+            originalPanelTitle.textContent = 'Original File';
+            resultPanelTitle.textContent = 'Hasil Konversi';
+            fileInput.removeAttribute('multiple'); // Reset multiple attribute to default single
+            fileInput.setAttribute('accept', 'image/*, application/pdf'); // Default accepts image and PDF only
+            convertButton.textContent = 'KONVERSI';
+
+            switch (type) {
+                case 'image_compress':
+                case 'image_enhance':
+                    // For these types, `multiple` should be set to allow drag-and-drop of multiple,
+                    // but `handleFiles` will only process the first one with a warning.
+                    fileInput.setAttribute('multiple', '');
+                    fileInput.setAttribute('accept', 'image/png, image/jpeg, image/gif, image/webp');
+                    if (type === 'image_compress') {
+                        qualitySliderContainer.style.display = 'block';
+                        dropIcon.className = 'fas fa-image';
+                        originalPanelTitle.textContent = 'Original Images (jpg,gif,png,webp)';
+                        resultPanelTitle.textContent = 'Compressed Image Result';
+                    } else { // image_enhance
+                        scaleFactorSliderContainer.style.display = 'block';
+                        dropIcon.className = 'fas fa-image';
+                        originalPanelTitle.textContent = 'Original Images (jpg,gif,png,webp)';
+                        resultPanelTitle.textContent = 'Enhanced Image Result';
+                    }
+                    break;
+                case 'image_to_pdf':
+                    fileInput.setAttribute('multiple', ''); // Crucially set to multiple for this specific type
+                    fileInput.setAttribute('accept', 'image/png, image/jpeg, image/gif, image/webp');
+                    dropIcon.className = 'fas fa-images'; // Plural icon for multiple images
+                    resultIcon.className = 'fas fa-file-pdf';
+                    originalPanelTitle.textContent = 'Original Images (jpg,gif,png,webp)';
+                    resultPanelTitle.textContent = 'Converted PDF Result';
+                    break;
+                case 'pdf_to_image':
+                    fileInput.removeAttribute('multiple'); // Explicitly remove multiple for single PDF selection
+                    fileInput.setAttribute('accept', 'application/pdf');
+                    dropIcon.className = 'fas fa-file-pdf';
+                    resultIcon.className = 'fas fa-image';
+                    originalPanelTitle.textContent = 'Original PDF File';
+                    resultPanelTitle.textContent = 'Converted Images Result';
+                    break;
+                default:
+                    showCustomAlert('Jenis konversi tidak dikenali.');
+                    break;
+            }
+        }
+
+        // Trigger file input when UPLOAD button is clicked
+        uploadButton.addEventListener('click', () => {
+            // Re-set the 'multiple' attribute just before opening the file dialog for robustness
+            if (currentConversionType === 'image_compress' || currentConversionType === 'image_enhance' || currentConversionType === 'image_to_pdf') {
+                fileInput.setAttribute('multiple', '');
+            } else {
+                fileInput.removeAttribute('multiple');
+            }
+            fileInput.click();
+        });
+
+        // Handle file input change event
+        fileInput.addEventListener('change', (e) => {
+            const files = e.target.files;
+            if (files.length > 0) {
+                handleFiles(files);
+            }
+        });
+
+        // Prevent default drag & drop behavior
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        // Add/remove drag-over class
+        dropArea.addEventListener('dragenter', () => dropArea.classList.add('drag-over'), false);
+        dropArea.addEventListener('dragover', () => dropArea.classList.add('drag-over'), false);
+        dropArea.addEventListener('dragleave', () => dropArea.classList.remove('drag-over'), false);
+        dropArea.addEventListener('drop', (e) => {
+            dropArea.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFiles(files);
+            }
+        }, false);
+
+
+        // Function to handle uploaded/dropped files
+        function handleFiles(files) {
+            if (files.length === 0) {
+                resetUI();
+                return;
+            }
+
+            uploadedFiles = []; // Clear the array for new selection
+
+            originalFileStatus.textContent = 'Memuat file...';
+            originalFileStatus.style.display = 'block';
+            dropIcon.style.display = 'none';
+            dropText.style.display = 'none';
+            uploadedImage.classList.remove('active');
+            uploadedImage.src = '#';
+            pdfThumbnailContainer.classList.add('hidden');
+            pdfThumbnailContainer.innerHTML = '';
+
+            let isValidFile = true;
+
+            if (currentConversionType === 'image_to_pdf') {
+                // For Image to PDF, take all valid image files
+                uploadedFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+                if (uploadedFiles.length === 0) {
+                    isValidFile = false;
+                    showCustomAlert('Tolong unggah setidaknya satu file gambar yang valid untuk konversi PDF.');
+                } else {
+                    dropIcon.className = 'fas fa-images'; // Plural icon
+                    dropIcon.style.display = 'block';
+                    dropText.textContent = `${uploadedFiles.length} Gambar Dipilih`;
+                    originalFileStatus.textContent = `Siap mengonversi ${uploadedFiles.length} gambar ke PDF.`;
+                }
+            } else {
+                // For single-file conversions (compress, enhance, pdf_to_image)
+                if (files.length > 1) {
+                    showCustomAlert('Hanya satu file yang diizinkan untuk jenis konversi ini. Mohon pilih satu file.');
+                    isValidFile = false;
+                } else {
+                    const file = files[0];
+                    uploadedFiles.push(file); // Store the single file
+
+                    // Validate the single file type
+                    if ((currentConversionType.startsWith('image_') && !file.type.startsWith('image/')) ||
+                        (currentConversionType === 'pdf_to_image' && file.type !== 'application/pdf')) {
+                        isValidFile = false;
+                        showCustomAlert('Jenis file tidak cocok dengan jenis konversi yang dipilih.');
+                    } else {
+                        // Display for single file
+                        if (file.type.startsWith('image/')) {
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                uploadedImage.src = e.target.result;
+                                uploadedImage.classList.add('active');
+                                originalFileStatus.textContent = `Ukuran Asli: ${(file.size / 1024).toFixed(2)} KB`;
+                            };
+                            reader.onerror = () => {
+                                originalFileStatus.textContent = 'Gagal memuat gambar.';
+                                resetUI();
+                            };
+                            reader.readAsDataURL(file);
+                        } else if (file.type === 'application/pdf') {
+                            originalFileStatus.textContent = `File PDF: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+                            dropIcon.className = 'fas fa-file-pdf';
+                            dropIcon.style.display = 'block';
+                            dropText.textContent = file.name;
+                            uploadedImage.classList.remove('active');
+                        } else {
+                            originalFileStatus.textContent = `File: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+                            dropIcon.className = 'fas fa-file';
+                            dropIcon.style.display = 'block';
+                            dropText.textContent = file.name;
+                            uploadedImage.classList.remove('active');
+                        }
+                    }
+                }
+            }
+
+            if (!isValidFile) {
+                resetUI(); // Reset if validation fails
+                return;
+            }
+
+            resetConversionResult();
+            fileInput.value = ''; // Crucial: Clear the input's value to allow re-selection of the same files
+        }
+
+        // Function to perform conversion based on selected type
+        convertButton.addEventListener('click', async () => {
+            if (uploadedFiles.length === 0) {
+                showCustomAlert('Tolong unggah file terlebih dahulu!');
+                return;
+            }
+
+            convertButton.textContent = 'Memproses...';
+            convertButton.disabled = true;
+            progressBarContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            convertedFileStatus.textContent = 'Memulai konversi...';
+            convertedFileStatus.style.display = 'block';
+            resultIcon.style.display = 'none';
+            convertedImage.classList.remove('active');
+            convertedPdfContainer.classList.add('hidden');
+            convertedImagesResult.classList.add('hidden');
+            convertedImagesResult.innerHTML = '';
+            downloadLink.style.display = 'none';
+            downloadLink.href = '#';
+            downloadAllImagesBtn.style.display = 'none';
+
+            progressBar.style.width = '10%';
+
+            try {
+                if (currentConversionType === 'image_compress') {
+                    await compressImage(uploadedFiles[0]);
+                } else if (currentConversionType === 'image_enhance') {
+                    await enhanceImageQuality(uploadedFiles[0]);
+                } else if (currentConversionType === 'image_to_pdf') {
+                    await imageToPdf(uploadedFiles);
+                } else if (currentConversionType === 'pdf_to_image') {
+                    await pdfToImage(uploadedFiles[0]);
+                }
+            } catch (error) {
+                showCustomAlert(`Terjadi kesalahan saat konversi: ${error.message}. Pastikan file valid dan tidak terlalu besar.`);
+                console.error('Conversion error:', error);
+            } finally {
+                resetConvertButton();
+            }
+        });
+
+        // --- Core Conversion Functions ---
+
+        async function compressImage(file) {
+            return new Promise((resolve, reject) => {
+                const quality = parseFloat(qualitySlider.value / 100);
+                const reader = new FileReader();
+
+                reader.onprogress = (event) => {
+                    if (event.lengthComputable) {
+                        const percentLoaded = Math.round((event.loaded / event.total) * 100 * 0.5);
+                        progressBar.style.width = `${percentLoaded}%`;
+                        progressBar.textContent = `${percentLoaded}%`;
+                    }
+                };
+
+                reader.onload = (e) => {
+                    progressBar.style.width = '50%';
+                    progressBar.textContent = '50%';
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        ctx.drawImage(img, 0, 0, img.width, img.height);
+
+                        let outputMimeType = 'image/jpeg';
+                        if (file.type === 'image/png') {
+                            outputMimeType = (quality < 1.0) ? 'image/jpeg' : 'image/png';
+                        } else if (file.type === 'image/gif') {
+                            outputMimeType = 'image/jpeg';
+                        } else if (file.type === 'image/webp') {
+                            outputMimeType = 'image/webp';
+                        }
+
+                        let convertedDataUrl;
+                        try {
+                            if (outputMimeType === 'image/png' || outputMimeType === 'image/gif') {
+                                convertedDataUrl = canvas.toDataURL(outputMimeType);
+                            } else {
+                                convertedDataUrl = canvas.toDataURL(outputMimeType, quality);
+                            }
+                            progressBar.style.width = '100%';
+                            progressBar.textContent = '100%';
+
+                            convertedImage.src = convertedDataUrl;
+                            convertedImage.classList.add('active');
+                            resultIcon.style.display = 'none';
+
+                            const convertedSize = (convertedDataUrl.length * 0.75 / 1024).toFixed(2);
+                            convertedFileStatus.textContent = `Ukuran Kompresi: ${convertedSize} KB`;
+
+                            downloadLink.href = convertedDataUrl;
+                            const fileNameParts = file.name.split('.');
+                            const fileExtension = outputMimeType.split('/')[1] || 'jpeg';
+                            downloadLink.download = `${fileNameParts[0]}-compressed.${fileExtension}`;
+                            downloadLink.style.display = 'inline-block';
+                            resolve();
+                        } catch (err) {
+                            reject(new Error('Gagal mengkompres gambar. Pastikan gambar valid.'));
+                        }
+                    };
+                    img.onerror = () => reject(new Error('Gagal memuat gambar untuk kompresi.'));
+                    img.src = e.target.result;
+                };
+                reader.onerror = () => reject(new Error('Gagal membaca file gambar asli.'));
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function enhanceImageQuality(file) {
+            return new Promise((resolve, reject) => {
+                const scaleFactor = parseFloat(scaleFactorSlider.value);
+                showCustomAlert('Peringatan: Peningkatan kualitas gambar di browser melakukan pembesaran (upscale) dan aplikasi filter penajaman dasar. Ini mungkin membuat gambar terlihat lebih tajam, tetapi tidak akan menambah detail yang sebenarnya dari gambar asli.');
+
+                const reader = new FileReader();
+
+                reader.onprogress = (event) => {
+                    if (event.lengthComputable) {
+                        const percentLoaded = Math.round((event.loaded / event.total) * 100 * 0.5);
+                        progressBar.style.width = `${percentLoaded}%`;
+                        progressBar.textContent = `${percentLoaded}%`;
+                    }
+                };
+
+                reader.onload = (e) => {
+                    progressBar.style.width = '50%';
+                    progressBar.textContent = '50%';
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+
+                        canvas.width = img.width * scaleFactor;
+                        canvas.height = img.height * scaleFactor;
+
+                        ctx.imageSmoothingEnabled = true;
+                        ctx.imageSmoothingQuality = 'high';
+
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        const pixels = imageData.data;
+                        const width = canvas.width;
+                        const height = canvas.height;
+
+                        const weights = [
+                            0, -1, 0,
+                            -1, 5, -1,
+                            0, -1, 0
+                        ];
+                        const side = Math.round(Math.sqrt(weights.length));
+                        const halfSide = Math.floor(side / 2);
+                        const output = new Uint8ClampedArray(pixels.length);
+
+                        for (let y = 0; y < height; y++) {
+                            for (let x = 0; x < width; x++) {
+                                const sy = y;
+                                const sx = x;
+                                const dstOff = (sy * width + sx) * 4;
+
+                                let r = 0, g = 0, b = 0;
+
+                                for (let cy = 0; cy < side; cy++) {
+                                    for (let cx = 0; cx < side; cx++) {
+                                        const scy = sy + cy - halfSide;
+                                        const scx = sx + cx - halfSide;
+
+                                        if (scy >= 0 && scy < height && scx >= 0 && scx < width) {
+                                            const srcOff = (scy * width + scx) * 4;
+                                            const weight = weights[cy * side + cx];
+                                            r += pixels[srcOff] * weight;
+                                            g += pixels[srcOff + 1] * weight;
+                                            b += pixels[srcOff + 2] * weight;
+                                        }
+                                    }
+                                }
+                                output[dstOff] = Math.min(255, Math.max(0, r));
+                                output[dstOff + 1] = Math.min(255, Math.max(0, g));
+                                output[dstOff + 2] = Math.min(255, Math.max(0, b));
+                                output[dstOff + 3] = pixels[dstOff + 3];
+                            }
+                        }
+                        imageData.data.set(output);
+                        ctx.putImageData(imageData, 0, 0);
+
+                        let outputMimeType = file.type;
+                        if (!outputMimeType.startsWith('image/')) {
+                            outputMimeType = 'image/png';
+                        }
+
+                        let enhancedDataUrl;
+                        try {
+                            enhancedDataUrl = canvas.toDataURL('image/png');
+                            progressBar.style.width = '100%';
+                            progressBar.textContent = '100%';
+
+                            convertedImage.src = enhancedDataUrl;
+                            convertedImage.classList.add('active');
+                            resultIcon.style.display = 'none';
+
+                            const convertedSize = (enhancedDataUrl.length * 0.75 / 1024).toFixed(2);
+                            convertedFileStatus.textContent = `Ukuran Hasil: ${convertedSize} KB (Ukuran Baru: ${canvas.width}x${canvas.height} px)`;
+
+                            downloadLink.href = enhancedDataUrl;
+                            const fileNameParts = file.name.split('.');
+                            const fileExtension = 'png';
+                            downloadLink.download = `${fileNameParts[0]}-enhanced.${fileExtension}`;
+                            downloadLink.style.display = 'inline-block';
+                            resolve();
+                        } catch (err) {
+                            reject(new Error('Gagal meningkatkan kualitas gambar. Pastikan gambar valid.'));
+                        }
+                    };
+                    img.onerror = () => reject(new Error('Gagal memuat gambar untuk peningkatan kualitas.'));
+                    img.src = e.target.result;
+                };
+                reader.onerror = () => reject(new Error('Gagal membaca file gambar asli.'));
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function imageToPdf(filesArray) {
+            return new Promise(async (resolve, reject) => {
+                if (filesArray.length === 0) {
+                    reject(new Error('Tidak ada gambar untuk dikonversi ke PDF.'));
+                    return;
+                }
+
+                const pdf = new jsPDF({
+                    orientation: 'p',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+                const pageWidth = pdf.internal.pageSize.getWidth();
+                const pageHeight = pdf.internal.pageSize.getHeight();
+                const margin = 10;
+
+                for (let i = 0; i < filesArray.length; i++) {
+                    const file = filesArray[i];
+                    convertedFileStatus.textContent = `Memuat gambar ${i + 1} dari ${filesArray.length}...`;
+                    let currentProgress = 10 + (i * (80 / filesArray.length * 0.5));
+                    progressBar.style.width = `${currentProgress}%`;
+                    progressBar.textContent = `${Math.round(currentProgress)}%`;
+
+                    const imgDataUrl = await new Promise((res, rej) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => res(e.target.result);
+                        reader.onerror = () => rej(new Error(`Gagal membaca file gambar ${file.name}.`));
+                        reader.readAsDataURL(file);
+                    });
+
+                    const img = new Image();
+                    await new Promise((res, rej) => {
+                        img.onload = () => res();
+                        img.onerror = () => rej(new Error(`Gagal memuat gambar ${file.name}.`));
+                        img.src = imgDataUrl;
+                    });
+
+                    const imgWidth = img.naturalWidth;
+                    const imgHeight = img.naturalHeight;
+
+                    let finalWidth = pageWidth - (2 * margin);
+                    let finalHeight = pageHeight - (2 * margin);
+
+                    const aspectRatio = imgWidth / imgHeight;
+                    if (finalWidth / aspectRatio > finalHeight) {
+                        finalWidth = finalHeight * aspectRatio;
+                    } else {
+                        finalHeight = finalWidth / aspectRatio;
+                    }
+
+                    const x = (pageWidth - finalWidth) / 2;
+                    const y = (pageHeight - finalHeight) / 2;
+
+                    if (i > 0) {
+                        pdf.addPage();
+                    }
+                    pdf.addImage(imgDataUrl, 'JPEG', x, y, finalWidth, finalHeight);
+
+                    currentProgress = 10 + ((i + 1) * (80 / filesArray.length * 0.5)) + (80 / filesArray.length * 0.5);
+                    progressBar.style.width = `${currentProgress}%`;
+                    progressBar.textContent = `${Math.round(currentProgress)}%`;
+                    convertedFileStatus.textContent = `Memproses gambar ${i + 1} dari ${filesArray.length}...`;
+                }
+
+                const pdfOutput = pdf.output('datauristring');
+                progressBar.style.width = '100%';
+                progressBar.textContent = '100%';
+
+                convertedFileStatus.textContent = `PDF berhasil dibuat (${(pdfOutput.length * 0.75 / 1024).toFixed(2)} KB)`;
+                convertedPdfContainer.classList.remove('hidden');
+                resultIcon.style.display = 'none';
+
+                downloadLink.href = pdfOutput;
+                const baseFileName = filesArray.length > 1 ? "gambar_tergabung" : filesArray[0].name.split('.')[0];
+                downloadLink.download = `${baseFileName}.pdf`;
+                downloadLink.style.display = 'inline-block';
+                resolve();
+            });
+        }
+
+        async function pdfToImage(file) {
+            return new Promise(async (resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const pdfData = new Uint8Array(e.target.result);
+                    convertedFileStatus.textContent = 'Memuat PDF...';
+                    progressBar.style.width = '20%';
+                    progressBar.textContent = '20%';
+
+                    try {
+                        const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+                        const pdf = await loadingTask.promise;
+                        convertedFileStatus.textContent = `Rendering ${pdf.numPages} halaman...`;
+
+                        convertedImageBlobs = [];
+                        convertedImagesResult.classList.remove('hidden');
+                        convertedImagesResult.innerHTML = '';
+
+                        for (let i = 1; i <= pdf.numPages; i++) {
+                            const page = await pdf.getPage(i);
+                            const viewport = page.getViewport({ scale: 1.5 });
+
+                            const canvas = document.createElement('canvas');
+                            const context = canvas.getContext('2d');
+                            canvas.height = viewport.height;
+                            canvas.width = viewport.width;
+
+                            const renderContext = {
+                                canvasContext: context,
+                                viewport: viewport,
+                            };
+
+                            await page.render(renderContext).promise;
+
+                            const imgDataUrl = canvas.toDataURL('image/png');
+                            const imgBlob = await new Promise(resolveBlob => canvas.toBlob(resolveBlob, 'image/png'));
+
+                            const fileName = `${file.name.split('.')[0]}_page_${i}.png`;
+                            convertedImageBlobs.push({ dataUrl: imgDataUrl, blob: imgBlob, name: fileName });
+
+                            const imageItemDiv = document.createElement('div');
+                            imageItemDiv.classList.add('image-item');
+
+                            const imgElement = document.createElement('img');
+                            imgElement.src = imgDataUrl;
+                            imgElement.alt = `Halaman ${i}`;
+                            imgElement.title = `Halaman ${i}`;
+
+                            const downloadIndividualBtn = document.createElement('button');
+                            downloadIndividualBtn.textContent = `Unduh Halaman ${i}`;
+                            downloadIndividualBtn.addEventListener('click', () => {
+                                saveAs(imgBlob, fileName);
+                            });
+
+                            imageItemDiv.appendChild(imgElement);
+                            imageItemDiv.appendChild(downloadIndividualBtn);
+                            convertedImagesResult.appendChild(imageItemDiv);
+
+                            const progress = 20 + Math.round(((i / pdf.numPages) * 80));
+                            progressBar.style.width = `${progress}%`;
+                            progressBar.textContent = `${progress}%`;
+                            convertedFileStatus.textContent = `Rendering halaman ${i} dari ${pdf.numPages}...`;
+                        }
+
+                        convertedFileStatus.textContent = `Konversi selesai. ${pdf.numPages} gambar dibuat.`;
+                        if (convertedImageBlobs.length > 0) {
+                            downloadAllImagesBtn.style.display = 'inline-block';
+                        }
+                        resolve();
+
+                    } catch (error) {
+                        showCustomAlert(`Gagal mengkonversi PDF ke Gambar: ${error.message}. Pastikan file PDF valid dan tidak terlalu besar.`);
+                        reject(error);
+                    }
+                };
+                reader.onerror = () => reject(new Error('Gagal membaca file PDF asli.'));
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        // --- Download All Images (ZIP) ---
+        downloadAllImagesBtn.addEventListener('click', async () => {
+            if (convertedImageBlobs.length === 0) {
+                showCustomAlert('Tidak ada gambar untuk diunduh.');
+                return;
+            }
+
+            const zip = new JSZip();
+            convertedFileStatus.textContent = 'Membuat file ZIP...';
+            downloadAllImagesBtn.disabled = true;
+            progressBarContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressBar.textContent = '0%';
+
+            for (let i = 0; i < convertedImageBlobs.length; i++) {
+                const img = convertedImageBlobs[i];
+                zip.file(img.name, img.blob);
+                const progress = Math.round(((i + 1) / convertedImageBlobs.length) * 100);
+                progressBar.style.width = `${progress}%`;
+                progressBar.textContent = `${progress}%`;
+            }
+
+            try {
+                // Ensure a base file name for the ZIP, even if only one file was originally uploaded
+                const zipFileName = uploadedFiles.length > 0 && uploadedFiles[0].name ?
+                                     `${uploadedFiles[0].name.split('.')[0]}-gambar.zip` :
+                                     'gambar_hasil_konversi.zip';
+
+                const zipContent = await zip.generateAsync({ type: 'blob' }, function update(metadata) {
+                    // Update progress bar during ZIP generation if needed, but generateAsync also has progress events
+                });
+                saveAs(zipContent, zipFileName);
+                showCustomAlert('File ZIP berhasil dibuat dan diunduh!');
+                convertedFileStatus.textContent = 'File ZIP berhasil dibuat dan diunduh.';
+            } catch (error) {
+                showCustomAlert(`Gagal membuat file ZIP: ${error.message}`);
+                console.error('ZIP creation error:', error);
+            } finally {
+                downloadAllImagesBtn.disabled = false;
+                progressBarContainer.style.display = 'none';
+                progressBar.style.width = '0%';
+                progressBar.textContent = '0%';
+            }
+        });
+
+
+        // --- UI Reset Functions ---
+
+        function resetUI() {
+            uploadedFiles = [];
+            uploadedImage.src = '#';
+            uploadedImage.classList.remove('active');
+            dropIcon.style.display = 'block';
+            dropText.style.display = 'block';
+            originalFileStatus.textContent = '';
+            originalFileStatus.style.display = 'none';
+            pdfThumbnailContainer.classList.add('hidden');
+            pdfThumbnailContainer.innerHTML = '';
+            fileInput.value = ''; // Penting: Mengosongkan nilai input file
+            resetConversionResult();
+        }
+
+        function resetConversionResult() {
+            convertedImage.src = '#';
+            convertedImage.classList.remove('active');
+            resultIcon.style.display = 'block';
+            downloadLink.style.display = 'none';
+            downloadLink.href = '#';
+            downloadAllImagesBtn.style.display = 'none';
+            convertedFileStatus.textContent = '';
+            convertedFileStatus.style.display = 'none';
+            convertedPdfContainer.classList.add('hidden');
+            convertedImagesResult.classList.add('hidden');
+            convertedImagesResult.innerHTML = '';
+            convertedImageBlobs = [];
+            resetConvertButton();
+        }
+
+        function resetConvertButton() {
+            convertButton.textContent = 'KONVERSI';
+            convertButton.disabled = false;
+            progressBarContainer.style.display = 'none';
+            progressBar.style.width = '0%';
+            progressBar.textContent = '0%';
+        }
+
+        // Initial setup on load
+        window.onload = () => {
+            updateUIForConversionType(currentConversionType);
+            resetUI();
+        };
+    </script>
+</body>
+</html>
